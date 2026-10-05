@@ -28,6 +28,7 @@
             <span class="pill taken">held</span>
           {% elif current_user and current_user['role'] == 'student' %}
             <form method="post" action="{{ url_for('book_slot', slot_id=slot.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit">Hold this</button>
             </form>
           {% elif not current_user %}

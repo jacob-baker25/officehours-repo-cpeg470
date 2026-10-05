@@ -17,10 +17,12 @@
     </section>
   {% endif %}
   {% if current_user['id'] == booking.student_id %}
-    <p>
-      <a href="{{ url_for('cancel_booking', booking_id=booking.id) }}">Cancel this hold</a>
-    </p>
-    <form method="get" action="{{ url_for('transfer_booking', booking_id=booking.id) }}" class="stack">
+    <form method="post" action="{{ url_for('cancel_booking', booking_id=booking.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Cancel this hold</button>
+    </form>
+    <form method="post" action="{{ url_for('transfer_booking', booking_id=booking.id) }}" class="stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>
         <span>Pass this slot to a classmate</span>
         <input type="email" name="email" placeholder="classmate@campus.edu" required>

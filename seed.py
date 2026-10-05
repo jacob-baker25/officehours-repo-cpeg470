@@ -1,11 +1,13 @@
 from werkzeug.security import generate_password_hash
 
-from db import get_db, init_db
+from db import PostgresConnection, get_db, init_db
 
 
 def seed():
     init_db()
     conn = get_db()
+    if isinstance(conn, PostgresConnection):
+        conn.execute("SELECT pg_advisory_xact_lock(470001)")
     existing = conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
     if existing:
         conn.close()
@@ -39,10 +41,11 @@ def seed():
     slot_ids = []
     for row in slots:
         cur = conn.execute(
-            "INSERT INTO slots (ta_id, starts_at, location, topic) VALUES (?, ?, ?, ?)",
+            "INSERT INTO slots (ta_id, starts_at, location, topic) "
+            "VALUES (?, ?, ?, ?) RETURNING id",
             row,
         )
-        slot_ids.append(cur.lastrowid)
+        slot_ids.append(cur.fetchone()["id"])
 
     conn.execute(
         """

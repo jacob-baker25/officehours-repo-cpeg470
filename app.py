@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import os
 import secrets
 from functools import wraps
@@ -28,6 +30,21 @@ def login_required(fn):
         return fn(*args, **kwargs)
 
     return wrapper
+
+
+def csrf_token():
+    if not g.get("session_token"):
+        return None
+    return hmac.new(
+        g.session_token.encode("ascii"), b"booking-csrf-v1", hashlib.sha256
+    ).hexdigest()
+
+
+def require_csrf_token():
+    submitted = request.form.get("csrf_token", "")
+    expected = csrf_token()
+    if not expected or not hmac.compare_digest(submitted, expected):
+        abort(403)
 
 
 @app.before_request
@@ -70,7 +87,7 @@ def persist_session_cookie(response):
 
 @app.context_processor
 def inject_user():
-    return {"current_user": current_user()}
+    return {"current_user": current_user(), "csrf_token": csrf_token()}
 
 
 def create_session(user_id):
@@ -146,11 +163,12 @@ def register():
             conn.close()
             return render_template("register.html", error="That email already has an account.", values=values)
         cur = conn.execute(
-            "INSERT INTO users (email, password_hash, display_name, role) VALUES (?, ?, ?, 'student')",
+            "INSERT INTO users (email, password_hash, display_name, role) "
+            "VALUES (?, ?, ?, 'student') RETURNING id",
             (email, generate_password_hash(password), display_name),
         )
+        user_id = cur.fetchone()["id"]
         conn.commit()
-        user_id = cur.lastrowid
         conn.close()
         g.session_token = create_session(user_id)
         return redirect(url_for("mine"))
@@ -202,6 +220,7 @@ def create_slot():
 @app.post("/slots/<int:slot_id>/book")
 @login_required
 def book_slot(slot_id):
+    require_csrf_token()
     if current_user()["role"] != "student":
         flash("TA accounts post hours; students book them.")
         return redirect(url_for("home"))
@@ -296,16 +315,16 @@ def booking_detail(booking_id):
     return render_template("booking.html", booking=booking)
 
 
-@app.get("/bookings/<int:booking_id>/cancel")
 @app.post("/bookings/<int:booking_id>/cancel")
 @login_required
 def cancel_booking(booking_id):
+    require_csrf_token()
     conn = get_db()
     booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
     if not booking:
         conn.close()
         abort(404)
-    if booking["student_id"] != current_user()["id"] and current_user()["role"] != "ta":
+    if booking["student_id"] != current_user()["id"]:
         conn.close()
         abort(403)
     conn.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
@@ -315,11 +334,11 @@ def cancel_booking(booking_id):
     return redirect(url_for("mine"))
 
 
-@app.get("/bookings/<int:booking_id>/transfer")
 @app.post("/bookings/<int:booking_id>/transfer")
 @login_required
 def transfer_booking(booking_id):
-    email = (request.values.get("email") or "").strip().lower()
+    require_csrf_token()
+    email = (request.form.get("email") or "").strip().lower()
     conn = get_db()
     booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
     if not booking:

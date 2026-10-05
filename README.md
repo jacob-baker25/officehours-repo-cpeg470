@@ -39,6 +39,23 @@ docker compose up --build
 
 The app listens on port 3000. Data lives in the `hold-data` volume.
 
+## Deploy on Render
+
+Create a **Web Service** from this repository with the Python 3 runtime:
+
+| Setting | Value |
+|---|---|
+| Build command | `pip install -r requirements.txt` |
+| Start command | `gunicorn app:app --bind 0.0.0.0:$PORT` |
+| Health check path | `/health` |
+
+Set a random `SECRET_KEY` environment variable. Choose one persistent database option:
+
+- **Free web service:** Create a Render Postgres database and set `DATABASE_URL` on the web service to its internal connection string. The app creates its tables on the first request. Render's free Postgres database expires after 30 days.
+- **Paid web service:** Leave `DATABASE_URL` unset and attach a persistent disk at `/opt/render/project/src/data` to keep the existing SQLite database across restarts and deploys.
+
+A free web service without Postgres loses SQLite bookings and sessions when it restarts or redeploys. The Docker Compose setup continues to use its local SQLite volume. The seeded demo accounts and passwords in this README are known to anyone who can see the repository; change or disable them before using a public deployment for real users.
+
 ## Demo accounts
 
 | Email | Password | Role |
